@@ -65,7 +65,7 @@ function render(){
   '<div class="label">拼写</div><input class="answer" id="answer" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="听到什么，就写什么">'+
   '<div class="row"><button class="play" id="check">检查</button><button class="play ghost" id="next">下一个 →</button></div><div class="fb" id="fb"></div></div>'+
   '<div class="panel hidden" id="meaning"><div class="word" id="word"></div><div class="pos" id="pos"></div><div class="zh" id="zh"></div><div class="example" id="example"></div><div class="row"><button class="play" id="play2">再听一遍</button><button class="play ghost" id="readDone">跟读完成</button></div></div>';
-  document.getElementById('back').onclick=list;document.getElementById('play').onclick=function(){play(.9)};document.getElementById('slow').onclick=function(){play(.65)};document.getElementById('check').onclick=check;document.getElementById('next').onclick=next;
+  document.getElementById('back').onclick=list;document.getElementById('play').onclick=function(){play(.9)};document.getElementById('slow').onclick=function(){play(.75)};document.getElementById('check').onclick=check;document.getElementById('next').onclick=next;
   document.getElementById('answer').addEventListener('keydown',function(e){if(e.key==='Enter')check()});
   document.getElementById('play2').onclick=function(){play(.9)};document.getElementById('readDone').onclick=next;
   document.getElementById('answer').focus();
