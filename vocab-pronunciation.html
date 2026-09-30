@@ -2216,7 +2216,7 @@ function drawWave(canvas,buffer,color){var ctx=canvas.getContext('2d'),w=canvas.
 function frameRms(buffer){var d=buffer.getChannelData(0),sr=buffer.sampleRate,frame=Math.round(sr*.025),hop=Math.round(sr*.01),out=[];for(var s=0;s+frame<=d.length;s+=hop){var sum=0;for(var i=s;i<s+frame;i++)sum+=d[i]*d[i];out.push(Math.sqrt(sum/frame))}return out}
 function resample(values,size){if(!values.length)return [];if(values.length===1)return new Array(size).fill(values[0]);var out=[];for(var i=0;i<size;i++){var p=i*(values.length-1)/(size-1),a=Math.floor(p),b=Math.min(values.length-1,a+1),t=p-a;out.push(values[a]*(1-t)+values[b]*t)}return out}
 function normalized(values){var mn=Math.min.apply(null,values),mx=Math.max.apply(null,values);if(mx-mn<1e-7)return values.map(function(){return 0});return values.map(function(v){return (v-mn)/(mx-mn)})}
-function activeEnvelope(buffer){var rms=frameRms(buffer),mx=Math.max.apply(null,rms)||0;if(mx<.006)return {values:[],duration:0};var th=mx*.16,first=-1,last=-1;for(var i=0;i<rms.length;i++){if(rms[i]>=th){if(first<0)first=i;last=i}}if(first<0)return {values:[],duration:0};var pad=2;first=Math.max(0,first-pad);last=Math.min(rms.length-1,last+pad);return {values:normalized(resample(rms.slice(first,last+1),48)),duration:(last-first+1)*.01}}
+function activeEnvelope(buffer){var rms=frameRms(buffer),mx=Math.max.apply(null,rms)||0;if(mx<1e-6)return {values:[],duration:0};var th=Math.max(mx*.08,1e-6),first=-1,last=-1;for(var i=0;i<rms.length;i++){if(rms[i]>=th){if(first<0)first=i;last=i}}if(first<0){first=0;last=rms.length-1}var pad=2;first=Math.max(0,first-pad);last=Math.min(rms.length-1,last+pad);return {values:normalized(resample(rms.slice(first,last+1),48)),duration:(last-first+1)*.01}}
 function pitchFrames(buffer){
   var d=buffer.getChannelData(0),sr=buffer.sampleRate,frame=Math.round(sr*.04),hop=Math.round(sr*.02),minLag=Math.round(sr/350),maxLag=Math.round(sr/70),out=[];
   for(var s=0;s+frame<=d.length;s+=hop){
@@ -2263,7 +2263,7 @@ prepareModel(CUR.word).then(function(){drawWave(document.getElementById('waveMod
 async function startRecording(){
   clearError();CHUNKS=[];RECORDING_BLOB=null;RECORDING_BUFFER=null;document.getElementById('score').classList.remove('on');
   try{
-    MEDIA_STREAM=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    MEDIA_STREAM=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
     RECORDER=new MediaRecorder(MEDIA_STREAM);RECORDER.ondataavailable=function(e){if(e.data.size)CHUNKS.push(e.data)};RECORDER.onstop=finishRecording;RECORDER.start();
     document.getElementById('record').disabled=true;document.getElementById('stop').disabled=false;
   }catch(e){showError('无法使用麦克风。请在 HTTPS 页面允许浏览器访问麦克风。')}
