@@ -27,9 +27,11 @@ main{max-width:900px;margin:0 auto;padding:13px 16px 60px}
 .wavePanel{margin-top:14px}
 .waveLabel{font-size:12.5px;color:#667085;font-weight:650;margin:10px 0 5px}
 canvas{display:block;width:100%;height:110px;background:#fbfcfe;border:1px solid #e1e7f0;border-radius:8px}
-.score{display:none;margin-top:14px;padding:12px;border-radius:10px;background:#eef7f2;border:1px solid #bfe3ce}
-.score.on{display:block}.scoreNum{font-size:30px;font-weight:800;color:#1b7a4b}
-.scoreText{font-size:13px;color:#607568}.error{display:none;margin-top:10px;padding:10px;border-radius:8px;background:#fff3f3;color:#a33}
+.score{display:none;margin-top:14px;padding:12px;border-radius:10px;background:#eef3fb;border:1px solid #cdddf2}
+.score.on{display:block}.scoreNum{font-size:30px;font-weight:800;color:#2456a6}
+.scoreText{font-size:13px;color:#56718f}.error{display:none;margin-top:10px;padding:10px;border-radius:8px;background:#fff3f3;color:#a33}
+.metrics{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.metric{background:#fff;border:1px solid #d5e0f0;border-radius:8px;padding:6px 9px;font-size:12.5px;color:#47617f}
+.recognized{display:none;margin-top:10px;padding:10px;border-radius:8px;background:#fff;border:1px solid #d5e0f0;color:#334}.recognized.on{display:block}
 .error.on{display:block}
 footer{text-align:center;color:#b6bcc7;font-size:12px;padding:20px 0 30px}
 @media(max-width:520px){main{padding:11px 10px 55px}header{padding:10px 10px 8px}canvas{height:90px}}
@@ -2196,26 +2198,52 @@ var TIMINGS={
   }
 };
 var SPRITE_URL='audio/vocab/vocab-sprite.m4a?v=20260930b';
-var CUR=null, AUDIO_CTX=null, FULL_BUFFER=null, MODEL_BUFFER=null, MEDIA_STREAM=null, RECORDER=null, CHUNKS=[], RECORDING_BLOB=null, RECORDING_BUFFER=null;
+var CUR=null, AUDIO_CTX=null, FULL_BUFFER=null, MODEL_BUFFER=null, MEDIA_STREAM=null, RECORDER=null, CHUNKS=[], RECORDING_BLOB=null, RECORDING_BUFFER=null, MODEL_AUDIO=null;
 function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function list(){var q=(document.getElementById('q').value||'').toLowerCase().trim();var rows=WORDS.filter(function(x){return !q||(x.word+' '+x.zh+' '+x.group).toLowerCase().indexOf(q)>=0});document.getElementById('app').innerHTML=rows.map(function(x){return '<div class="card" data-id="'+esc(x.id)+'"><div><div class="cname">'+esc(x.word)+'</div><div class="cmeta">'+esc(x.group)+' · '+esc(x.zh)+'</div></div><div class="go">核对 →</div></div>'}).join('')||'<div style="text-align:center;color:#98a0ae;padding:40px">没有找到词汇</div>'}
 function ensureContext(){if(!AUDIO_CTX)AUDIO_CTX=new (window.AudioContext||window.webkitAudioContext)();return AUDIO_CTX}
 async function loadSprite(){if(FULL_BUFFER)return FULL_BUFFER;var ctx=ensureContext(),r=await fetch(SPRITE_URL),b=await r.arrayBuffer();FULL_BUFFER=await ctx.decodeAudioData(b);return FULL_BUFFER}
 function segmentBuffer(full,start,end){var ctx=ensureContext(),sr=full.sampleRate,a=Math.max(0,Math.floor(start*sr)),b=Math.min(full.length,Math.ceil(end*sr)),len=Math.max(1,b-a),out=ctx.createBuffer(1,len,sr),src=full.getChannelData(0),dst=out.getChannelData(0);for(var i=0;i<len;i++)dst[i]=src[a+i];return out}
 async function prepareModel(word){var t=TIMINGS[word];if(!t)throw new Error('该词没有音频时间轴');var full=await loadSprite();MODEL_BUFFER=segmentBuffer(full,t.start,t.end);return MODEL_BUFFER}
-function playBuffer(buffer,rate){if(!buffer)return;var ctx=ensureContext(),src=ctx.createBufferSource();src.buffer=buffer;src.playbackRate.value=rate||1;src.connect(ctx.destination);src.start()}
+function playModel(rate){
+  var t=TIMINGS[CUR.word];if(!t){showError('该词没有示例音频');return}
+  if(!MODEL_AUDIO){MODEL_AUDIO=new Audio(SPRITE_URL);MODEL_AUDIO.preload='auto';}
+  MODEL_AUDIO.pause();MODEL_AUDIO.currentTime=t.start;MODEL_AUDIO.playbackRate=rate||1;
+  MODEL_AUDIO.ontimeupdate=function(){if(MODEL_AUDIO.currentTime>=t.end){MODEL_AUDIO.pause();MODEL_AUDIO.ontimeupdate=null}};
+  MODEL_AUDIO.play().catch(function(){showError('发音播放失败，请检查网络后重试')});
+}
 function drawWave(canvas,buffer,color){var ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height,data=buffer.getChannelData(0),mid=h/2;ctx.clearRect(0,0,w,h);ctx.fillStyle='#fbfcfe';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#dce4ef';ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();for(var x=0;x<w;x++){var a=Math.floor(x*data.length/w),b=Math.floor((x+1)*data.length/w),min=1,max=-1;for(var i=a;i<b;i++){var v=data[i];if(v<min)min=v;if(v>max)max=v}ctx.moveTo(x,mid-min*mid*.9);ctx.lineTo(x,mid-max*mid*.9)}ctx.stroke()}
-function envelope(buffer,bins){var d=buffer.getChannelData(0),out=[],step=Math.max(1,Math.floor(d.length/bins));for(var b=0;b<bins;b++){var s=0,n=0;for(var i=b*step;i<Math.min(d.length,(b+1)*step);i++){s+=d[i]*d[i];n++}out.push(Math.sqrt(s/Math.max(n,1)))}var max=Math.max.apply(null,out)||1;return out.map(function(x){return x/max})}
-function correlation(a,b){var dot=0,na=0,nb=0;for(var i=0;i<a.length;i++){dot+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i]}return dot/Math.sqrt(Math.max(na*nb,1e-9))}
+function frameRms(buffer){var d=buffer.getChannelData(0),sr=buffer.sampleRate,frame=Math.round(sr*.025),hop=Math.round(sr*.01),out=[];for(var s=0;s+frame<=d.length;s+=hop){var sum=0;for(var i=s;i<s+frame;i++)sum+=d[i]*d[i];out.push(Math.sqrt(sum/frame))}return out}
+function resample(values,size){if(!values.length)return [];if(values.length===1)return new Array(size).fill(values[0]);var out=[];for(var i=0;i<size;i++){var p=i*(values.length-1)/(size-1),a=Math.floor(p),b=Math.min(values.length-1,a+1),t=p-a;out.push(values[a]*(1-t)+values[b]*t)}return out}
+function normalized(values){var mn=Math.min.apply(null,values),mx=Math.max.apply(null,values);if(mx-mn<1e-7)return values.map(function(){return 0});return values.map(function(v){return (v-mn)/(mx-mn)})}
+function activeEnvelope(buffer){var rms=frameRms(buffer),mx=Math.max.apply(null,rms)||0;if(mx<.006)return {values:[],duration:0};var th=mx*.16,first=-1,last=-1;for(var i=0;i<rms.length;i++){if(rms[i]>=th){if(first<0)first=i;last=i}}if(first<0)return {values:[],duration:0};var pad=2;first=Math.max(0,first-pad);last=Math.min(rms.length-1,last+pad);return {values:normalized(resample(rms.slice(first,last+1),48)),duration:(last-first+1)*.01}}
+function pitchFrames(buffer){
+  var d=buffer.getChannelData(0),sr=buffer.sampleRate,frame=Math.round(sr*.04),hop=Math.round(sr*.02),minLag=Math.round(sr/350),maxLag=Math.round(sr/70),out=[];
+  for(var s=0;s+frame<=d.length;s+=hop){
+    var mean=0;for(var i=0;i<frame;i++)mean+=d[s+i];mean/=frame;
+    var energy=0;for(var i=0;i<frame;i++){var x=d[s+i]-mean;energy+=x*x}if(Math.sqrt(energy/frame)<.008)continue;
+    var best=0,bestLag=0;
+    for(var lag=minLag;lag<=maxLag;lag+=2){var xy=0,xx=0,yy=0;for(var i=0;i<frame-lag;i+=2){var x=d[s+i]-mean,y=d[s+i+lag]-mean;xy+=x*y;xx+=x*x;yy+=y*y}var corr=xy/Math.sqrt(Math.max(xx*yy,1e-9));if(corr>best){best=corr;bestLag=lag}}
+    if(best>.42&&bestLag)out.push(sr/bestLag);
+  }
+  return out;
+}
+function comparePitch(a,b){if(a.length<3||b.length<3)return null;var aa=resample(a,32),bb=resample(b,32),ma=aa.slice().sort(function(x,y){return x-y})[16],mb=bb.slice().sort(function(x,y){return x-y})[16];var av=aa.map(function(x){return Math.log2(x/ma)}),bv=bb.map(function(x){return Math.log2(x/mb)}),sum=0;for(var i=0;i<av.length;i++)sum+=Math.abs(av[i]-bv[i]);var avg=sum/av.length;return Math.max(0,Math.min(100,Math.round((1-Math.min(avg,.7)/.7)*100)))}
 function compare(){
   if(!MODEL_BUFFER||!RECORDING_BUFFER)return;
-  var modelEnv=envelope(MODEL_BUFFER,72),userEnv=envelope(RECORDING_BUFFER,72);
-  var energy=Math.max(0,correlation(modelEnv,userEnv));
-  var duration=Math.min(MODEL_BUFFER.duration,RECORDING_BUFFER.duration)/Math.max(MODEL_BUFFER.duration,RECORDING_BUFFER.duration);
-  var score=Math.round((energy*.72+duration*.28)*100);
-  var box=document.getElementById('score'),num=document.getElementById('scoreNum'),txt=document.getElementById('scoreText');
+  var me=activeEnvelope(MODEL_BUFFER),ue=activeEnvelope(RECORDING_BUFFER);
+  if(!ue.values.length){showError('录音音量太低，请靠近麦克风重新录制。');return}
+  var rhythmDiff=0;for(var i=0;i<me.values.length;i++)rhythmDiff+=Math.abs(me.values[i]-ue.values[i]);rhythmDiff/=me.values.length;
+  var rhythm=Math.max(0,Math.round((1-Math.min(rhythmDiff,.8)/.8)*100));
+  var duration=Math.round(Math.min(me.duration,ue.duration)/Math.max(me.duration,ue.duration)*100);
+  var pitch=comparePitch(pitchFrames(MODEL_BUFFER),pitchFrames(RECORDING_BUFFER));
+  var score=duration*.18+rhythm*.37+(pitch==null?0:pitch*.45);
+  if(pitch==null)score=(duration*.35+rhythm*.65);
+  score=Math.round(score);
+  var box=document.getElementById('score'),num=document.getElementById('scoreNum'),txt=document.getElementById('scoreText'),metrics=document.getElementById('metrics');
   box.classList.add('on');num.textContent=score+'%';
-  txt.textContent=score>=85?'节奏和音波轮廓很接近，可以肯定跟读。':score>=70?'整体节奏接近，再检查重音、词尾和元音长度。':score>=55?'能看出相似的节奏，建议慢速跟读后再录一次。':'差异较大，先慢速听三遍，按音节跟读。此结果只辅助对比，不是PTE评分。';
+  txt.textContent='这是时长、节奏和相对音高辅助匹配，不判断单词是否正确，也不是PTE评分。支持语音识别的浏览器会再给出词形识别结果。';
+  metrics.innerHTML='<span class="metric">时长匹配 '+duration+'%</span><span class="metric">节奏轮廓 '+rhythm+'%</span><span class="metric">音高轮廓 '+(pitch==null?'录音不足':pitch+'%')+'</span>';
 }
 function showError(msg){var e=document.getElementById('error');e.textContent=msg;e.classList.add('on')}
 function clearError(){document.getElementById('error').classList.remove('on')}
@@ -2223,12 +2251,13 @@ function render(){document.getElementById('app').innerHTML='<span class="back" i
 '<div class="panel"><div class="title">'+esc(CUR.word)+'</div><div class="pos">'+esc(CUR.pos)+'</div><div class="zh">'+esc(CUR.zh)+'</div>'+(CUR.example?'<div class="example">'+esc(CUR.example)+'</div>':'')+
 '<div class="row"><button class="btn" id="model">▶ 原速度</button><button class="btn ghost" id="slow">0.75 倍速</button></div>'+
 '<div class="tip">第一步：听原速度和 0.75 倍速。第二步：录音跟读。第三步：回听并对比音波。</div></div>'+
-'<div class="panel"><div class="row"><button class="btn record" id="record">● 开始录音</button><button class="btn ghost" id="stop" disabled>停止</button><button class="btn ghost" id="mine" disabled>▶ 听我的录音</button></div>'+
-'<div class="error" id="error"></div><div class="wavePanel"><div class="waveLabel">示范发音音波</div><canvas id="waveModel" width="900" height="110"></canvas><div class="waveLabel">我的录音音波</div><canvas id="waveUser" width="900" height="110"></canvas></div><div class="score" id="score"><div class="scoreNum" id="scoreNum"></div><div class="scoreText" id="scoreText"></div></div></div>';
+'<div class="panel"><div class="row"><button class="btn record" id="record">● 开始录音</button><button class="btn ghost" id="stop" disabled>停止</button><button class="btn ghost" id="mine" disabled>▶ 听我的录音</button><button class="btn ghost" id="recognize"'+(('' )+(!!(window.SpeechRecognition||window.webkitSpeechRecognition)?'':' disabled title="当前浏览器不支持语音识别"'))+'>语音识别核对</button></div>'+
+'<div class="error" id="error"></div><div class="wavePanel"><div class="waveLabel">示范发音音波</div><canvas id="waveModel" width="900" height="110"></canvas><div class="waveLabel">我的录音音波</div><canvas id="waveUser" width="900" height="110"></canvas></div><div class="score" id="score"><div class="scoreNum" id="scoreNum"></div><div class="scoreText" id="scoreText"></div><div class="metrics" id="metrics"></div><div class="recognized" id="recognized"></div></div></div>';
 document.getElementById('back').onclick=function(){stopRecording();list()};
-document.getElementById('model').onclick=async function(){try{clearError();playBuffer(await prepareModel(CUR.word),1);drawWave(document.getElementById('waveModel'),MODEL_BUFFER,'#2456a6')}catch(e){showError(e.message)}};
-document.getElementById('slow').onclick=async function(){try{clearError();playBuffer(await prepareModel(CUR.word),.75);drawWave(document.getElementById('waveModel'),MODEL_BUFFER,'#2456a6')}catch(e){showError(e.message)}};
+document.getElementById('model').onclick=async function(){try{clearError();playModel(1);await prepareModel(CUR.word);drawWave(document.getElementById('waveModel'),MODEL_BUFFER,'#2456a6')}catch(e){showError(e.message)}};
+document.getElementById('slow').onclick=async function(){try{clearError();playModel(.75);await prepareModel(CUR.word);drawWave(document.getElementById('waveModel'),MODEL_BUFFER,'#2456a6')}catch(e){showError(e.message)}};
 document.getElementById('record').onclick=startRecording;document.getElementById('stop').onclick=stopRecording;document.getElementById('mine').onclick=playMine;
+document.getElementById('recognize').onclick=recognizeWord;
 prepareModel(CUR.word).then(function(){drawWave(document.getElementById('waveModel'),MODEL_BUFFER,'#2456a6')}).catch(function(){});
 }
 async function startRecording(){
@@ -2246,6 +2275,16 @@ async function finishRecording(){
   try{var ctx=ensureContext(),b=await RECORDING_BLOB.arrayBuffer();RECORDING_BUFFER=await ctx.decodeAudioData(b);drawWave(document.getElementById('waveUser'),RECORDING_BUFFER,'#b83b3b');compare()}catch(e){showError('录音回放生成失败，请重新录制。')}
 }
 function playMine(){if(RECORDING_BLOB)new Audio(URL.createObjectURL(RECORDING_BLOB)).play()}
+function editDistance(a,b){var dp=[];for(var i=0;i<=a.length;i++)dp[i]=[i];for(var j=0;j<=b.length;j++)dp[0][j]=j;for(var i=1;i<=a.length;i++)for(var j=1;j<=b.length;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1])+1;return dp[a.length][b.length]}
+function recognizeWord(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;var box=document.getElementById('recognized');
+  if(!SR){showError('当前浏览器不支持语音识别，请使用 Chrome 或安卓浏览器测试。');return}
+  clearError();var rec=new SR();rec.lang='en-GB';rec.interimResults=false;rec.maxAlternatives=3;
+  box.className='recognized on';box.textContent='正在识别，请朗读一次 '+CUR.word+'…';
+  rec.onresult=function(e){var alternatives=[];for(var i=0;i<e.results[0].length;i++)alternatives.push(e.results[0][i].transcript.trim().toLowerCase());var target=CUR.word.toLowerCase(),best=null;alternatives.forEach(function(text){var d=editDistance(text.replace(/[^a-z'-]/g,''),target),sim=Math.max(0,1-d/Math.max(target.length,1));if(!best||sim>best.sim)best={text,sim}});box.innerHTML='识别结果：<b>'+esc(best.text)+'</b><br>词形匹配：'+Math.round(best.sim*100)+'%'+(best.sim>=.85?' ✓':'，请再试一次')};
+  rec.onerror=function(){box.textContent='语音识别失败，请检查麦克风权限或改用 Chrome。'};
+  rec.onend=function(){};rec.start();
+}
 document.getElementById('app').onclick=function(e){var c=e.target.closest&&e.target.closest('.card');if(c){var w=WORDS.find(function(x){return x.id===c.dataset.id});if(w){CUR=w;render()}}};
 document.getElementById('q').oninput=list;
 list();
