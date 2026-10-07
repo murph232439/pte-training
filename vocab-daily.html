@@ -24,7 +24,7 @@ input.answer{width:100%;border:1px solid #d8dde6;border-radius:9px;padding:11px;
 .option:hover{border-color:#2456a6}.option.right{background:#e7f7ee;border-color:#34c77b;color:#1b7a4b;font-weight:700}.option.wrong{background:#fdecec;border-color:#e35d5d;color:#a33}
 .studyCard{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid #e4e8ef;border-radius:9px;background:#fff;padding:11px 12px;margin-bottom:8px}
 .studyMain{min-width:0}.studyWord{font-weight:700;color:#2456a6}.studyMeta{font-size:12px;color:#8b93a3}
-.summary{text-align:center}.big{font-size:42px;font-weight:800;color:#2456a6}.congrat{font-size:28px;font-weight:800;color:#1b7a4b}
+.summary{text-align:center}.big{font-size:42px;font-weight:800;color:#2456a6}.congrat{font-size:28px;font-weight:800;color:#1b7a4b}.groupLine{margin-top:8px;padding:7px 10px;border-radius:8px;background:#eef3fb;border:1px solid #d7e3f7;color:#2456a6;font-size:14px;font-weight:700}
 .metrics{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}.metric{background:#fff;border:1px solid #d5e0f0;border-radius:8px;padding:6px 10px;font-size:13px;color:#47617f}
 .miss{margin-top:16px;text-align:left}.missTitle{font-size:14px;font-weight:700;color:#667;margin-bottom:7px}.missRow{padding:7px 9px;background:#fff;border:1px solid #e4e8ef;border-radius:8px;margin-bottom:6px}
 .fb{display:none;margin-top:10px;padding:10px;border-radius:9px}.fb.on{display:block}.fb.good{background:#f1fbf5;border:1px solid #bfe3ce}.fb.bad{background:#fff5f5;border:1px solid #efc7c7}
@@ -115,7 +115,7 @@ function renderSummary(){
   clearTimer();var total=STUDY.length*2,correct=SPELL_OK+MEAN_OK,pct=Math.round(correct/total*100);
   var missed=[];
   for(var i=0;i<STUDY.length;i++){missed.push(STUDY[i])}
-  var out='<div class="panel summary"><div class="congrat">Congratulation!</div><div class="big">正确率 '+pct+'%</div><div class="sub">'+esc(STUDY_LABEL)+' · 完成 '+STUDY.length+' 个词 · 拼写和词义共 '+total+' 个检测点</div><div class="metrics"><span class="metric">拼写 '+SPELL_OK+' / '+STUDY.length+'</span><span class="metric">词义 '+MEAN_OK+' / '+STUDY.length+'</span><span class="metric">答对 '+correct+' / '+total+'</span></div>';
+  var out='<div class="panel summary"><div class="congrat">Congratulation!</div><div class="big">正确率 '+pct+'%</div><div class="groupLine">检测词组：'+esc(STUDY_LABEL)+' · '+dateKey()+'</div><div class="sub">完成 '+STUDY.length+' 个词 · 拼写和词义共 '+total+' 个检测点</div><div class="metrics"><span class="metric">拼写 '+SPELL_OK+' / '+STUDY.length+'</span><span class="metric">词义 '+MEAN_OK+' / '+STUDY.length+'</span><span class="metric">答对 '+correct+' / '+total+'</span></div>';
   out+='<div class="row" style="justify-content:center"><button class="btn" id="again">再测同一组</button><button class="btn ghost" id="home">返回首页</button></div></div>';
   document.getElementById('app').innerHTML=out;
   document.getElementById('again').onclick=function(){IDX=0;SPELL_OK=0;MEAN_OK=0;CUR=STUDY[0];renderSpell()};
