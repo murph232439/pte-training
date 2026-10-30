@@ -57,7 +57,7 @@
   }
 
   function wordCount(text) {
-    return (String(text || '').match(/[A-Za-z0-9]+(?:['’\-][A-Za-z0-9]+)*/g) || []).length;
+    return words(text).length;
   }
 
   function stem(token) {
@@ -116,25 +116,21 @@
 
   function renderCoverage(host, text, phrases, part) {
     host.textContent = "";
-    if (!text.trim()) {
-      host.textContent = '先写一句主题或一条笔记，再检查词组。';
-      return;
-    }
     var result = coverageResult(text, phrases);
     var ratio = result.total ? result.matched.length / result.total : 0;
     var title = document.createElement("div");
     title.className = "pfbMeta";
-    title.textContent = "词组自查：匹配 " + result.matched.length + "/" + result.total;
+    title.textContent = "快速反馈：关键点覆盖 " + result.matched.length + "/" + result.total;
     host.appendChild(title);
 
     if (result.missed.length) {
       var missLabel = document.createElement("div");
-      missLabel.textContent = "以下原文词组未匹配到，可对照检查是否已用自己的话表达：";
+      missLabel.textContent = "这次没有清楚带到的内容：";
       host.appendChild(missLabel);
       appendPhraseChips(host, result.missed);
     } else {
       var complete = document.createElement("div");
-      complete.textContent = "列出的词组已匹配到。再检查信息关系和句意是否准确。";
+      complete.textContent = "关键点基本都带到了，内容骨架已经比较稳。";
       host.appendChild(complete);
     }
 
@@ -147,10 +143,6 @@
       action.textContent = "下一步：先不要追求长句，按关键词的先后顺序说出讲座主干。";
     }
     host.appendChild(action);
-    var scope = document.createElement('div');
-    scope.className = 'pfbSmall';
-    scope.textContent = '这里检查词组匹配；同义改写可能未被识别。请结合原文和参考范文核对内容。';
-    host.appendChild(scope);
 
     if (part === "sst" || part === "SST") {
       var count = wordCount(text);
@@ -184,9 +176,7 @@
       : 0;
     var title = document.createElement("div");
     title.className = "pfbMeta";
-    title.textContent = userWords.join(' ') === refWords.join(' ')
-      ? '已订正：词形和顺序与参考答案一致。'
-      : '订正自查：请核对下面列出的词形差异。';
+    title.textContent = "快速反馈：与参考答案的词形匹配约 " + score + "%";
     host.appendChild(title);
 
     var userSet = new Set(userWords);
@@ -204,9 +194,7 @@
       host.appendChild(add);
     }
     var tip = document.createElement("div");
-    tip.textContent = userWords.join(' ') === refWords.join(' ')
-      ? '再读一遍改动处，说明你修改的原因。'
-      : '对照「看答案」中标出的修改位置；词形对比不能判断其他合理改写。';
+    tip.textContent = "优先检查这些位置附近的时态、单复数、拼写和介词。";
     host.appendChild(tip);
   }
 
@@ -453,7 +441,6 @@
       var oldCard = window.cardMode;
       window.cardMode = function (item) {
         try { oldCard(item); } catch (error) { console.warn("card mode", error); }
-        if (!item.phrases2 || !item.phrases2.length) return;
         var panel = document.createElement("div");
         panel.className = "panel";
         panel.appendChild(makeControls({
@@ -519,7 +506,7 @@
     mountSkill();
   }
 
-  window.PTEFeedback = { init: init, wordCount: wordCount, coverageResult: coverageResult };
+  window.PTEFeedback = { init: init };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
